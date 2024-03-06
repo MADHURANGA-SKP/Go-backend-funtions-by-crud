@@ -76,11 +76,11 @@ func (q *Queries) Gettasks(ctx context.Context, taskid int32) (Task, error) {
 const listtasks = `-- name: Listtasks :many
 SELECT taskid, taksname, tasktime, taskdate FROM tasks
 ORDER BY taskid
-LIMIT $1
+LIMIT 1
 `
 
-func (q *Queries) Listtasks(ctx context.Context, limit int32) ([]Task, error) {
-	rows, err := q.db.QueryContext(ctx, listtasks, limit)
+func (q *Queries) Listtasks(ctx context.Context) ([]Task, error) {
+	rows, err := q.db.QueryContext(ctx, listtasks)
 	if err != nil {
 		return nil, err
 	}

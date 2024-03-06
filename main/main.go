@@ -1,24 +1,82 @@
 package main
 
 import (
+	"database/sql"
 	"fmt" // package that contain fromattings/strings/inputs/outputs
-	"os"  // package that contain functions to intract with os
+	"log"
+	"os" // package that contain functions to intract with os
+
+	_ "github.com/lib/pq"
 )
 
 type Task struct { // declare struct  colletions tor store task data
-    TaskName string 
+    TaskId int
+	TaskName string 
     TaskTime  string 
     TaskDate  string 
 }
 
 var tasks  []Task //declare variable name tasks that slice of Task object
 
+
+const (
+    host     = "localhost"
+    port     = 5432
+    user     = "pasan"
+    password = "12345"
+    dbname   = "my-crud"
+)
+
+
+func initializeDB() (*sql.DB, error) {
+    connStr := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=disable", host, port, user, password, dbname)
+    db, err := sql.Open("postgres", connStr)
+    if err != nil {
+        return nil,err
+    }
+    if err := db.Ping(); err != nil {
+        db.Close()
+        return nil, err
+    }
+
+    fmt.Println("Connected to the database successfully!")
+    return db, nil
+}
+
+func saveTaskToDB(db *sql.DB, task Task) {
+    _, err := db.Exec("INSERT INTO tasks (taskid, taskname, tasktime, taskdate) VALUES ($1, $2, $3, $4)",task.TaskId, task.TaskName, task.TaskTime, task.TaskDate)
+    if err != nil {
+        log.Fatal(err)
+    }
+}
+
+
+func loadTasksFromDB(db *sql.DB) []Task {
+    rows, err := db.Query("SELECT * FROM tasks ORDER BY taskid LIMIT 1")
+    if err != nil {
+        log.Fatal(err)
+    }
+    defer rows.Close()
+
+    var loadedTasks []Task
+    for rows.Next() {
+        var task Task
+        if err := rows.Scan(&task.TaskId,&task.TaskName, &task.TaskTime, &task.TaskDate); err != nil {
+            log.Fatal(err)
+        }
+        loadedTasks = append(loadedTasks, task)
+    }
+
+    return loadedTasks
+}
+
+
 func readTask(tasks []Task){
  if tasks == nil {
 	fmt.Printf("Tasks are empty...!")
  }else{
 	for _, tasks := range tasks { 
-		fmt.Printf("Task Name:%s | Task Time:%s | Task Date:%s\n", tasks.TaskName, tasks.TaskTime,tasks.TaskDate)	
+		fmt.Printf("Task ID:%d | Task Name:%s | Task Time:%s | Task Date:%s\n", tasks.TaskId, tasks.TaskName, tasks.TaskTime,tasks.TaskDate)	
 	}	//%s this is an string fromat specifer that says where shoud include values
  }
 }
@@ -31,7 +89,7 @@ func showTaskById(id int, tasks []Task){
 			//by getting values to the tasklist without specifing the type of the variable
 
 			if tasks[i] == tasklist {
-			 fmt.Printf("Task Name:%s | Task Time:%s| Task Date:%s\n\n", tasklist.TaskName,tasklist.TaskTime,tasklist.TaskDate)
+			 fmt.Printf("Task ID:%d | Task Name:%s | Task Time:%s| Task Date:%s\n\n", tasklist.TaskId, tasklist.TaskName,tasklist.TaskTime,tasklist.TaskDate)
 			}
 		 }
 	}else{
@@ -39,11 +97,16 @@ func showTaskById(id int, tasks []Task){
 	 }
    }
 
-func createTask(tasks *[]Task){
+func createTask(tasks *[]Task, db *sql.DB){
+	var taski int
 	var taskN string
 	var taskD string
 	var taskT string
 	fmt.Println()
+
+
+	fmt.Print("Enter Task ID : ")
+	fmt.Scan(&taski)
 
 	fmt.Print("Enter Task Name : ")
 	fmt.Scan(&taskN)
@@ -58,12 +121,14 @@ func createTask(tasks *[]Task){
 	fmt.Print("Enter Task Date : ")
 	fmt.Scan(&taskD)
 
-	Task_ := Task{TaskName:taskN, TaskDate:taskD, TaskTime:taskT}
+	Task_ := Task{TaskId:taski, TaskName:taskN, TaskDate:taskD, TaskTime:taskT}
 	//declare new variable and save Task struct to data by assigning new values
 
 	*tasks = append(*tasks, Task_) 
 	//says uses to append new slices to *tasks
 	//*uses to access the tasks values 
+
+	saveTaskToDB(db, Task_)
 
 	fmt.Println("Task successfully Created..!")
 	fmt.Printf("\n")
@@ -81,7 +146,7 @@ func deleteTaskById(id int, tasks *[]Task){
 	//get portion of the struct till i: and i+1: 
 	//then concat both parts of the struct and equal it to the *tasks
 	for _, tasks := range *tasks {
-		fmt.Printf("Task Name:%s | Task Time:%s | Task Date:%s\n", tasks.TaskName,tasks.TaskTime,tasks.TaskDate)
+		fmt.Printf("Task ID:%d | Task Name:%s | Task Time:%s | Task Date:%s\n", tasks.TaskId,tasks.TaskName,tasks.TaskTime,tasks.TaskDate)
 		fmt.Println("Task successfully Deleted..!")	
 		}
    } else {
@@ -93,11 +158,15 @@ func deleteTaskById(id int, tasks *[]Task){
 func updateTask(id int, tasks []Task){
 		//id is index to be update
 	i := id -1
+	var taski int
 	var taskN string
 	var taskD string
 	var taskT string
 	if tasks != nil {
 		fmt.Println()
+
+		fmt.Print("Enter Task Name : ")
+		fmt.Scan(&taski)
 
 		fmt.Print("Enter Task Name : ")
 		fmt.Scan(&taskN)
@@ -116,7 +185,7 @@ func updateTask(id int, tasks []Task){
 			if tasks[i] == tasklist {
 		//when goes throug the each index of task struct check if user index matches the tasks indexes
 		//if it does update the values of that belongs to that exact index
-				tasks[i] = Task{TaskName:taskN, TaskTime:taskT, TaskDate:taskD}
+				tasks[i] = Task{TaskId:taski, TaskName:taskN, TaskTime:taskT, TaskDate:taskD}
 				fmt.Println("Task successfully Updated..!")
 			}
 		}
@@ -137,20 +206,20 @@ func listOfOptions() {
 }
 
 
-func reload(){
+func reload(db *sql.DB){
 	var input string
 	fmt.Print("Type 'Enter' go back to menu: ")
 	fmt.Scan(&input)
 	if input == "Enter"{
-		menu()
+		menu(db)
 	}else{
 		fmt.Printf("Invalid Input...!\n")
-		reload()
+		reload(db)
 	}
 	//reload the menu function to be shown
 }
 
-func menu() {
+func menu(db *sql.DB) {
 	var option int
 	listOfOptions()
 	for {
@@ -170,10 +239,10 @@ func menu() {
 			fmt.Print("Enter Task ID that you want to get :")
 			fmt.Scan(&id)
 			showTaskById(id, tasks)
-			reload()
+			reload(db)
 		case 3:
-			createTask(&tasks)
-			reload()
+			createTask(&tasks , db)
+			reload(db)
 		case 4:
 			var id int
 			fmt.Println()
@@ -181,7 +250,7 @@ func menu() {
 			fmt.Scan(&id)
 			updateTask(id, tasks)
 			fmt.Printf("\n")
-			reload()
+			reload(db)
 		case 5:
 			var id int
 			fmt.Println()
@@ -189,16 +258,34 @@ func menu() {
 			fmt.Scan(&id)
 			deleteTaskById(id, &tasks)
 			fmt.Printf("\n")
-			reload()
+			reload(db)
 		default:
 			fmt.Println("Re-enter your choice!")
-			menu()
+			menu(db)
 		}
 	}
 
 	}
 }
 
-func main(){
-	menu()
+func main() {
+	db, err := initializeDB()
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer db.Close()
+
+	// Create a 'tasks' table if it doesn't exist
+	_, createTableErr := db.Exec(`CREATE TABLE IF NOT EXISTS tasks (
+		taskid int PRIMARY KEY,
+		taksname varchar,
+		tasktime varchar,
+		taskdate varchar
+	)`)
+	if createTableErr != nil {
+		log.Fatal(createTableErr)
+	}
+
+	tasks = loadTasksFromDB(db)
+	menu(db)
 }

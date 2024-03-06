@@ -16,7 +16,7 @@ WHERE taskid = $1 LIMIT 1;
 -- name: Listtasks :many
 SELECT * FROM tasks
 ORDER BY taskid
-LIMIT $1;
+LIMIT 1;
 
 -- name: Updatetasks :one
 UPDATE tasks SET taskid = $2, taksname = $3, tasktime =$4, taskdate = $5
